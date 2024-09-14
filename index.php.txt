@@ -8,54 +8,41 @@ require_once(plugin_dir_path(__DIR__) . 'General/functions.php');
 function selectActionFormIds()
 {
     return [
-        "TestForm" => [
-            'toolboxActionForm' => 403,
+        "NTP" => [
+            'toolboxActionForm' => 356,
             'toolboxActionType' => 4,
-            'toolboxActionLocation' => 17,
+            'toolboxActionLocation' => 12,
             'toolboxActionActionField' => 1,
             'toolboxActionPersonName' => 7,
             'toolboxActionName' => 15,
             'toolboxActionPersonRemoveName' => [
-                "Enschede" => 6,
-                "Hattem" => 18,
-                "Zevenaar" => 19,
-                "Asfaltcentrale" => 20,
-                "Midden" => 21,
-                "Nexus" => 24,
-                "Winterman" => 23,
+                "Amsterdam" => 42,
+                "Woerden" => 43,
+		"Haarlem" => 44
             ],
             'toolboxActionToolboxes' => 3,
             //Toolbox app:
-            'toolboxAppForm' => 401,
-            'toolboxAppToolboxes' => 809,
-            'toolboxAppDivision' => 800,
+            'toolboxAppForm' => 189,
+            'toolboxAppToolboxes' => 129,
+            'toolboxAppDivision' => 185,
             'toolboxAppPersons' => [
-                "Enschede" => 434,
-                "Hattem" => 437,
-                "Zevenaar" => 438,
-                "Asfaltcentrale" => 619,
-                "Midden" => 655,
-                "Nexus" => 833,
-                "Winterman" => 699,
-                "Nexus 2" => 833
+                "Amsterdam" => 7,
+                "Woerden" => 9,
+                "Haarlem" => 186,
             ],
             'toolboxAppPersonsSignature' => [
-                "Nexus 2" => 702,
-                "Winterman" => 782,
-                "Nexus" => 702,
-                "Enschede" => 502,
-                "Hattem" => 504,
-                "Zevenaar" => 621,
-                "Asfaltcentrale" => 656,
-                "Midden" => 801,
+                "Amsterdam" => 40,
+                "Woerden" => 187,
+                "Haarlem" => 106,
+
 
             ],
             'toolboxAppDate' => 3,
-            'toolboxPersonForm' => 402,
-            'toolboxPersonLocation' => 5,
-            'toolboxPersonNameField' => 4,
+            'toolboxPersonForm' => 426,
+            'toolboxPersonLocation' => 3,
+            'toolboxPersonNameField' => 1,
             'toolboxAppHandtekeningSection' => 801,
-            'toolboxOverigField' => 12,
+            'toolboxOverigField' => 4,
             'toolboxOverigSignatures' => [
                 511 => 512,
                 513 => 514,
@@ -68,7 +55,8 @@ function selectActionFormIds()
                 528 => 527,
                 529 => 530,
             ]
-        ],        ],
+
+        ],
     ];
 
 }
