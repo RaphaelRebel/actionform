@@ -1,0 +1,601 @@
+<?php
+
+require_once(plugin_dir_path(__DIR__) . 'General/functions.php');
+
+
+
+
+function selectActionFormIds()
+{
+    return [
+        "TestForm" => [
+            'toolboxActionForm' => 403,
+            'toolboxActionType' => 4,
+            'toolboxActionLocation' => 17,
+            'toolboxActionActionField' => 1,
+            'toolboxActionPersonName' => 7,
+            'toolboxActionName' => 15,
+            'toolboxActionPersonRemoveName' => [
+                "Enschede" => 6,
+                "Hattem" => 18,
+                "Zevenaar" => 19,
+                "Asfaltcentrale" => 20,
+                "Midden" => 21,
+                "Nexus" => 24,
+                "Winterman" => 23,
+            ],
+            'toolboxActionToolboxes' => 3,
+            //Toolbox app:
+            'toolboxAppForm' => 401,
+            'toolboxAppToolboxes' => 809,
+            'toolboxAppDivision' => 800,
+            'toolboxAppPersons' => [
+                "Enschede" => 434,
+                "Hattem" => 437,
+                "Zevenaar" => 438,
+                "Asfaltcentrale" => 619,
+                "Midden" => 655,
+                "Nexus" => 833,
+                "Winterman" => 699,
+                "Nexus 2" => 833
+            ],
+            'toolboxAppPersonsSignature' => [
+                "Nexus 2" => 702,
+                "Winterman" => 782,
+                "Nexus" => 702,
+                "Enschede" => 502,
+                "Hattem" => 504,
+                "Zevenaar" => 621,
+                "Asfaltcentrale" => 656,
+                "Midden" => 801,
+
+            ],
+            'toolboxAppDate' => 3,
+            'toolboxPersonForm' => 402,
+            'toolboxPersonLocation' => 5,
+            'toolboxPersonNameField' => 4,
+            'toolboxAppHandtekeningSection' => 801,
+            'toolboxOverigField' => 12,
+            'toolboxOverigSignatures' => [
+                511 => 512,
+                513 => 514,
+                515 => 518,
+                516 => 519,
+                517 => 520,
+                521 => 522,
+                523 => 524,
+                525 => 526,
+                528 => 527,
+                529 => 530,
+            ]
+        ],        ],
+    ];
+
+}
+
+function in_array_r($needle, $haystack)
+{
+    foreach ($haystack as $item) {
+        if ($item['toolboxActionForm'] === intval($needle) || $item['toolboxAppForm'] === intval($needle)) {
+            return $item;
+        }
+    }
+    return false;
+}
+
+add_filter('gform_field_validation', 'error_messages', 10, 5);
+function error_messages($result, $value, $form, $field, $context)
+{
+    $formId = $form['fields'][0]['formId'];
+
+
+    $selectActionFormIdsCheck = selectActionFormIds();
+
+    $selectActionFormIds = in_array_r($formId, $selectActionFormIdsCheck) ?? null;
+
+    if (!$selectActionFormIds) {
+        return $result;
+    }
+
+
+
+    $locations = $selectActionFormIds['toolboxActionLocation'];
+    $source_form_id = $selectActionFormIds['toolboxAppForm'];
+    $division_ids = $selectActionFormIds['toolboxAppPersons'];
+    $name_field = $selectActionFormIds['toolboxActionPersonName'];
+
+
+    if ($field->id == $name_field) {
+        $location = rgpost('input_' . $locations);
+
+        if ($location) {
+            $division = $division_ids[$location];
+        } else {
+            foreach ($selectActionFormIds['toolboxAppPersons'] as $key => $fieldValue) {
+                $division = $fieldValue;
+            }
+        }
+
+        $names = GFAPI::get_field($source_form_id, $division);
+
+        foreach ($names['choices'] as $key => $val) {
+            if ($val['text'] == $value) {
+                if ($location) {
+                    $result['message'] = "De naam " . $value . " is al in gebruik op locatie " . $location . ".";
+                } else {
+                    $result['message'] = "De naam " . $value . " is al in gebruik.";
+                }
+                $result['is_valid'] = false;
+                return $result;
+            }
+        }
+        $result['is_valid'] = true;
+        return $result;
+    }
+
+    return $result;
+
+}
+
+// Populate dropdown choices dynamically
+add_filter('gform_pre_render', 'populate_dropdown_toolbox_action');
+add_filter('gform_pre_validation', 'populate_dropdown_toolbox_action');
+add_filter('gform_pre_submission_filter', 'populate_dropdown_toolbox_action');
+add_filter('gform_admin_pre_render', 'populate_dropdown_toolbox_action');
+function populate_dropdown_toolbox_action($form)
+{
+    $selectActionFormIdsCheck = selectActionFormIds();
+
+    $formId = $form['fields'][1]['formId'];
+
+    $selectActionFormIds = in_array_r($formId, $selectActionFormIdsCheck) ?? null;
+
+
+    if (!$selectActionFormIds) {
+        return $form;
+    }
+
+    GFFormsModel::flush_current_forms();
+
+    if ($formId == $selectActionFormIds['toolboxActionForm']) {
+
+        $toolbox_app_form = $selectActionFormIds['toolboxAppForm'];
+        $persoon_form = $selectActionFormIds['toolboxPersonForm'];
+        $toolbox_source_field_id = $selectActionFormIds['toolboxAppToolboxes'];
+
+
+        foreach ($form['fields'] as $field) {
+
+            foreach ($selectActionFormIds['toolboxActionPersonRemoveName'] as $key => $value) {
+                if ($field['id'] == $value) {
+                    $form_person = GFAPI::get_form($persoon_form);
+                    $form_app = GFAPI::get_form($toolbox_app_form);
+                    $search_criteria['status'] = 'active';
+                    $paging = array('offset' => 0, 'page_size' => $persoon_form);
+                    $entries = GFAPI::get_entries($persoon_form, $search_criteria, null, $paging);
+
+                    $source_field = GFAPI::get_field($toolbox_app_form, $selectActionFormIds['toolboxAppPersons'][$key]);
+
+
+                    $choices = $source_field->choices;
+                    $field->choices = $choices;
+
+                }
+            }
+            if (strpos($field->cssClass, 'populate-toolboxen') !== false) {
+
+                $source_field = GFAPI::get_field($toolbox_app_form, $toolbox_source_field_id);
+                $choices = $source_field->choices;
+                $field->choices = $choices;
+            } else {
+                continue;
+            }
+        }
+
+        return $form;
+    } else {
+        return $form;
+    }
+}
+
+add_action('gform_after_submission', 'gf_after_submission_app', 10, 2);
+
+function gf_after_submission_app($entry, $form)
+{
+
+    error_log(print_r($entry, true));
+
+    $selectActionFormIdsCheck = selectActionFormIds();
+
+    $selectActionFormIds = in_array_r($entry['form_id'], $selectActionFormIdsCheck) ?? null;
+
+    if (!$selectActionFormIds) {
+        return;
+    }
+    
+    if ($entry['form_id'] == $selectActionFormIds['toolboxAppForm']) {
+
+        $location = rgar($entry, $selectActionFormIds['toolboxAppDivision']);
+        $personFileLocation = $selectActionFormIds['toolboxPersonLocation'] ?? false;
+        $personFileNameFieldId = $selectActionFormIds['toolboxPersonNameField'];
+        $personOverig = $selectActionFormIds['toolboxOverigSignatures'];
+        $personOverigRegistrationId = $selectActionFormIds['toolboxOverigField'];
+
+
+
+        if ($location) {
+
+            foreach ($selectActionFormIds['toolboxAppPersons'] as $key => $value) {
+                if ($location == $key) {
+                    $locationName = $key;
+                    $person_location_field_id = $value;
+                }
+            }
+
+        } else {
+            foreach ($selectActionFormIds['toolboxAppPersons'] as $key => $value) {
+
+                $locationName = $key;
+                $person_location_field_id = $value;
+
+            }
+        }
+
+        $dest_form_id = $selectActionFormIds['toolboxPersonForm'];
+        $toolboxTitle = rgar($entry, $selectActionFormIds['toolboxAppToolboxes']);
+        $count_input = 0;
+        $checkedNames = [];
+
+        $names = GFFormsModel::get_field($form, $person_location_field_id);
+
+
+        foreach ($names['choices'] as $choices) {
+            $count_input++;
+
+            $choice = rgpost('input_' . $person_location_field_id . '_' . $count_input);
+
+            if ($choice !== "") {
+                $newName = array('name' => $choice, 'status' => 'Geregistreerd', 'location' => $locationName);
+                $countCheckedNames = count($checkedNames);
+
+                $checkedNames[$countCheckedNames] = $newName;
+            }
+
+        }
+
+        //Get name and signature from Overig users
+        foreach ($personOverig as $name => $signature) {
+            $nameOverig = rgar($entry, $name);
+
+            if ($nameOverig !== "") {
+                $newName = array('name' => $nameOverig, 'status' => 'Overig', 'signature' => $entry[$signature]);
+                
+                $countCheckedNames = count($checkedNames);
+
+                $checkedNames[$countCheckedNames] = $newName;
+
+            }
+        }
+       
+      
+
+        $sourceForm = GFAPI::get_form($selectActionFormIds['toolboxPersonForm']);
+
+        //Get signature field id from registered users
+        foreach ($sourceForm["fields"] as $field) {
+
+            if (str_starts_with($field["label"], "Handtekening")) {
+
+                $signatureTarget = str_replace("Handtekening - ", "", $field->label);
+
+                if ($signatureTarget == $toolboxTitle) {
+
+                    $signature_id[] = $field->id;
+                }
+
+            } else {
+                if ($field->label == $toolboxTitle) {
+                    $toolbox_id[] = $field->id;
+                }
+            }
+        }
+
+        foreach ($checkedNames as $name) {
+
+            //Check if name is overig, if so, get signature from Overig users
+
+            //Get signature from registered users
+            foreach ($form["fields"] as $field) {
+                if ($field["label"] == $name['name']) {
+                    $name['signature'] = rgar($entry, $field->id);
+
+                    if ($name['signature'] !== "") {
+                        break;
+                    }
+                }
+            }
+
+            $search_criteria = null;
+            $search_criteria['field_filters'][] = array('value' => $name['name']);
+            if ($location) {
+                $search_criteria['field_filters'][] = [
+                    'value' => $location
+                ];
+            }
+
+            $search_criteria['status'] = 'active';
+            $entries = GFAPI::get_entries($dest_form_id, $search_criteria);
+            
+            if (count($entries) == 0) {
+
+                $input_values['form_id'] = $dest_form_id;
+                $input_values[$personFileNameFieldId] = $name['name'];
+                if ($name['status']) {
+                    $input_values[$personOverigRegistrationId] = $name['status'];
+                }
+                $input_values[$toolbox_id[0]] = 'x';
+                $input_values[$signature_id[0]] = $name['signature'];
+                
+                if ($personFileLocation) {
+                    $input_values[$personFileLocation] = $name['location'];
+                }
+
+                $entry_id = GFAPI::add_entry($input_values);
+            } else {
+                foreach ($entries as $single) {
+                    $update_entry_id = rgar($single, 'id');
+                    $result = GFAPI::update_entry_field($update_entry_id, $toolbox_id[0], 'x');
+                    $result2 = GFAPI::update_entry_field($update_entry_id, $signature_id[0], $name['signature']);
+                }
+            }
+
+
+        }
+    } elseif ($entry['form_id'] == $selectActionFormIds['toolboxActionForm']) {
+        $action = rgar($entry, $selectActionFormIds['toolboxActionActionField']);
+        $type = rgar($entry, $selectActionFormIds['toolboxActionType']);
+        $source_form_id = $selectActionFormIds['toolboxAppForm'];
+        $dest_form_id = $selectActionFormIds['toolboxPersonForm'];
+        $source_form = GFAPI::get_form($source_form_id);
+        $dest_form = GFAPI::get_form($dest_form_id);
+        $toolbox_source_field_id = $selectActionFormIds['toolboxAppToolboxes'];
+        $persoon_source_field_id = $selectActionFormIds['toolboxAppPersons'];
+        $persoon_remove_field_id = $selectActionFormIds['toolboxActionPersonRemoveName'];
+
+
+        $section_field_id = $selectActionFormIds['toolboxAppHandtekeningSection'];
+        $location = rgar($entry, $selectActionFormIds['toolboxActionLocation']);
+        $addLocation = false;
+
+        if ($location || $type == "Toolbox") {
+
+            $addLocation = true;
+            
+            foreach ($persoon_source_field_id as $key => $value) {
+                if ($location == $key) {
+                    
+                    $source_field_id = $value;
+                }
+            }
+
+            foreach ($persoon_remove_field_id as $key => $value) {
+                if ($location == $key) {
+                    $location_dropdown_id = $value;
+                    
+                    $persoon_remove_field_id = $value;
+                }
+            }
+
+            
+            foreach ($selectActionFormIds['toolboxAppPersonsSignature'] as $key => $value) {
+                
+                if ($location == $key) {
+                    $section_field_id = $value;
+                }
+            }
+            
+        } else {
+            $source_field_id = array_shift($persoon_source_field_id) ?? $persoon_source_field_id;
+            $persoon_remove_field_id = array_shift($selectActionFormIds['toolboxActionPersonRemoveName']) ?? $selectActionFormIds['toolboxActionPersonRemoveName'];
+
+
+        }
+        
+        if ($type == "Personen") {
+
+            $counter = 0;
+            foreach ($source_form['fields'] as $field) {
+                $counter++;
+                if ($field->id == $source_field_id) {
+                    $array_index = $counter - 1;
+
+                    $choicesPersoon = $field->choices;
+                }
+            }
+            
+            $choices = $source_form['fields'][$array_index]->choices;
+
+            if ($action == "Toevoegen") {
+
+                $name = rgar($entry, $selectActionFormIds['toolboxActionPersonName']);
+                $index = count($choicesPersoon);
+
+                $choices[$index] = array('text' => $name, 'value' => $name);
+
+                usort($choices, function ($a, $b) {
+                    return $a['value'] <=> $b['value'];
+                });
+                
+                $source_form['fields'][$array_index]['choices'] = $choices;
+
+                
+                $new_field_id = 0;
+                foreach ($source_form['fields'] as $field) {
+                    if ($field->id > $new_field_id) {
+                        $new_field_id = $field->id;
+                    }
+                }
+
+                $new_field_id++;
+
+                $properties['type'] = 'signature';
+                $properties['id'] = $new_field_id;
+                $properties['label'] = $name;
+                $properties['isRequired'] = true;
+                $properties['size'] = 'large';
+                $properties['errorMessage'] = '';
+                $properties['visibility'] = 'visible';
+                $properties['formId'] = $source_form_id;
+                $properties['description'] = '';
+                $properties['allowsPrepopulate'] = false;
+                $properties['inputMask'] = false;
+                $properties['inputMask'] = null;
+                $properties['inputMaskValue'] = '';
+                $properties['inputMaskIsCustom'] = false;
+
+
+                $properties['conditionalLogic'] = array('actionType' => 'show', 'logicType' => 'all', 'rules' => array(array('fieldId' => $source_field_id, 'operator' => 'is', 'value' => $name)));
+
+                $field = GF_Fields::create($properties);
+                
+                $new_inarray_id = array_search($section_field_id, array_column($source_form['fields'], 'id'));
+                array_splice($source_form['fields'], $new_inarray_id, 0, array($field));
+
+
+
+            } else if ($action == "Verwijderen") {
+
+                $name = rgar($entry, $persoon_remove_field_id);
+               
+                $choicesPersoon = array_values($choicesPersoon);
+                
+                for ($x = 0; $x < count($choicesPersoon); $x++) {
+
+                    if ($choicesPersoon[$x]['text'] == $name)
+                        unset($choicesPersoon[$x]);
+                }
+
+
+                usort($choices, function ($a, $b) {
+                    return $a['text'] <=> $b['text'];
+                });
+                $source_form['fields'][$array_index]['choices'] = $choicesPersoon;
+
+                for ($y; $y < count($source_form['fields']); $y++) {
+                    if ($source_form['fields'][$y]['label'] == $name) {
+
+                        unset($source_form['fields'][$y]);
+                    }
+                }
+
+            }
+        }
+        if ($type == "Toolbox") {
+
+
+            $array_index = 0;
+            for (; $array_index < count($source_form['fields']); $array_index++) {
+                if ($source_form['fields'][$array_index]['id'] == $toolbox_source_field_id)
+                    break;
+            }
+            $choices = $source_form['fields'][$array_index]->choices;
+            if ($action == "Toevoegen") {
+
+                //Adds Toolbox Title to Dropdown in Toolbox App form
+                $toolbox_title = rgar($entry, $selectActionFormIds['toolboxActionName']);
+
+                $choicesBefore = $field->choices;
+                $choice[] = array('text' => $toolbox_title, 'value' => $toolbox_title);
+                $newChoices = array_merge($choice, $source_form['fields'][$array_index]['choices']);
+                $source_form['fields'][$array_index]['choices'] = $newChoices;
+
+                //             usort($choices, function ($a, $b) {
+//                 return $b['text'] <=> $a['text'];
+//             });
+
+                //Adds Fields to Persoon form
+                $new_field_id = 0;
+                foreach ($dest_form['fields'] as $field) {
+                    if ($field->id > $new_field_id) {
+                        $new_field_id = $field->id;
+                    }
+                }
+                $new_field_id++;
+
+                //Add field with Toolbox Title
+                $properties['type'] = 'text';
+                $properties['id'] = $new_field_id;
+                $properties['label'] = $toolbox_title;
+                $properties['isRequired'] = false;
+                $properties['size'] = 'medium';
+                $properties['visibility'] = 'visible';
+
+                $field = GF_Fields::create($properties);
+
+                $dest_form['fields'][] = $field;
+
+                unset($properties);
+                unset($field);
+
+                //Add field with Toolbox Signature
+                $new_field_id++;
+
+                $properties['type'] = 'signature';
+                $properties['id'] = $new_field_id;
+                $properties['label'] = "Handtekening - " . $toolbox_title;
+                $properties['isRequired'] = false;
+                $properties['size'] = 'medium';
+                $properties['visibility'] = 'visible';
+
+                $field = GF_Fields::create($properties);
+
+                $dest_form['fields'][] = $field;
+
+            }
+            if ($action == "Verwijderen") {
+                $toolbox_title = rgar($entry, $selectActionFormIds['toolboxActionToolboxes']);
+                //Delete from Selection list in Toolbox App form
+                for ($x = 0; $x < count($choices); $x++) {
+                    if ($choices[$x]['text'] == $toolbox_title) {
+                        unset($choices[$x]);
+                        array_values($choices);
+                    }
+                }
+
+                $source_form['fields'][$array_index]['choices'] = $choices;
+
+                // Delete Toolbox name field
+//                     $delete_signature_id = 0;
+//                     for ($y = 0; $y <= count($dest_form['fields']); $y++) {
+//                         if ($dest_form['fields'][$y]['label'] == $toolbox_title) {
+//                             $toolbox_id = $dest_form['fields'][$y]['id'];
+//                             if (array_key_exists($toolbox_id, VBG_TOOLBOX_SIGNATURE)) {
+//                                 $delete_signature_id = VBG_TOOLBOX_SIGNATURE[$toolbox_id];
+//                             } else {
+//                                 $delete_signature_id = $toolbox_id + 1;
+//                             }
+//                             unset($dest_form['fields'][$y]);
+//                             array_values($dest_form['fields']);
+//                             break;
+//                         }
+//                     }
+//                     $count_form = count($dest_form['fields']);
+//                     // Delete connected Signature field
+//                     if ($delete_signature_id != 0) {
+//                         for ($z = 0; $z <= count($dest_form['fields']); $z++) {
+//                             if ($dest_form['fields'][$z]['id'] == $delete_signature_id) {
+//                                 unset($dest_form['fields'][$z]);
+//                                 array_values($dest_form['fields']);
+//                                 break;
+//                             }
+//                         }
+//                     }
+            }
+        }
+        $result = GFAPI::update_form($source_form);
+        $result2 = GFAPI::update_form($dest_form);
+
+
+    }
+
+}
